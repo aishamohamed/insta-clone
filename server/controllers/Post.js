@@ -4,10 +4,16 @@ import User from '../models/User.js';
 // Get all posts
 export const getAllPosts = async (req, res) => {
   try {
-    const posts = await Post.find().populate('comments').populate('likes');
-    if (!posts) {
+    const posts = await Post.find()
+      .populate('user', 'username avatar')
+      .populate({
+        path: 'comments',
+        populate: { path: 'user', select: 'username avatar' }
+      });
+     if (!posts) {
         return res.status(404).json({ msg: 'Post not found' });
     }
+ 
     res.json(posts);
     console.log("posts from the server", posts);
   } catch (error) {
