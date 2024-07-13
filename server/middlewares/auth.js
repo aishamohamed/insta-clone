@@ -1,19 +1,17 @@
 import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
+import ErrorHandler from '../utils/errorHandler.js';
+import catchAsync from './catchAsync.js';
 
-const auth = (req, res, next) => {
-  const token = req.header('x-auth-token');
+export const isAuthenticated = catchAsync(async (req, res, next) => {
+  const { token } = req.cookies;
 
   if (!token) {
-    return res.status(401).json({ msg: 'No token, authorization denied' });
+    return next(new ErrorHandler('Please login to access this resource', 401));
   }
 
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded.user;
-    next();
-  } catch (err) {
-    res.status(401).json({ msg: 'Token is not valid' });
-  }
-};
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  req.user = await User.findById(decoded.id);
 
-export default auth;
+  next();
+});

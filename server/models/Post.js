@@ -22,16 +22,18 @@ const PostSchema = new mongoose.Schema({
   },
 
   likes: [{
-        type: mongoose.Schema.ObjectId, ref: "User" 
+        type: mongoose.Schema.ObjectId, 
+        ref: "User" 
   }],
 
   likesCount: {
-  type: Number,
-  default: 0,
+    type: Number,
+    default: 0,
   },
 
   comments: [{ 
-  type: mongoose.Schema.ObjectId, ref: "Comment" 
+    type: mongoose.Schema.ObjectId, 
+    ref: "Comment" 
   }],
 
   commentsCount: {
@@ -40,6 +42,6 @@ const PostSchema = new mongoose.Schema({
   },
 });
 
-const Posts = mongoose.model('post', PostSchema);
+const Posts = mongoose.model('Post', PostSchema);
 
 export default Posts; 

@@ -1,66 +1,65 @@
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import User from '../models/userModel.js';
+import User from '../models/User.js';
+import catchAsync from '../middlewares/catchAsync.js';
+import sendCookie from '../utils/sendCookie.js';
+import ErrorHandler from '../utils/errorHandler.js';
 
-export const register = async (req, res) => {
-  // Registration logic
-  try {
-    // Extract user info from request
-    const { name, email, password } = req.body;
+// Signup User
+export const signupUser = catchAsync(async (req, res, next) => {
+  const { fullname, email, username, password } = req.body;
+  const user = await User.findOne({ $or: [{ email }, { username }] });
 
-    // Check if user already exists
-    let user = await User.findOne({ email });
-    if (user) {
-      return res.status(400).json({ msg: 'User already exists' });
-    }
-
-    // Create new user
-    user = new User({ name, email, password });
-
-    // Encrypt password
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
-
-    // Save user to database
-    await user.save();
-
-    // Generate JWT token
-    const payload = { user: { id: user.id } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' }, (err, token) => {
-      if (err) throw err;
-      res.json({ token });
-    });
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
+  if (user) {
+    return next(new ErrorHandler("Username or Email already exists", 401));
   }
-};
 
-export const login = async (req, res) => {
-  // Login logic
-  try {
-    const { email, password } = req.body;
+  const avatar = req.file ? req.file.path : undefined;
+  const newUser = await User.create({ fullname, email, username, password, avatar});
+  sendCookie(newUser, 201, res);
+});
 
-    // Check if user exists
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ msg: 'Invalid credentials' });
-    }
+// Login User
+export const loginUser = catchAsync(async (req, res, next) => {
+  const { userId, password } = req.body;
+  const user = await User.findOne({ $or: [{ email: userId }, { username: userId }] }).select("+password");
 
-    // Check password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ msg: 'Invalid credentials' });
-    }
-
-    // Generate JWT token
-    const payload = { user: { id: user.id } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' }, (err, token) => {
-      if (err) throw err;
-      res.json({ token });
-    });
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
+  if (!user || !(await user.comparePassword(password))) {
+    return next(new ErrorHandler("Invalid credentials", 401));
   }
-};
+
+  sendCookie(user, 200, res);
+});
+
+// Logout User
+export const logoutUser = catchAsync(async (req, res, next) => {
+  res.cookie('token', null, { expires: new Date(Date.now()), httpOnly: true });
+  res.status(200).json({ success: true, message: "Logged Out" });
+});
+
+// Get Account Details
+export const getAccountDetails = catchAsync(async (req, res, next) => {
+  const user = await User.findById(req.user._id).populate({ path: 'posts', populate: { path: 'postedBy' } });
+  res.status(200).json({ success: true, user });
+});
+
+// Follow/Unfollow User
+export const followUser = catchAsync(async (req, res, next) => {
+  const userToFollow = await User.findById(req.params.id);
+  const loggedInUser = await User.findById(req.user._id);
+
+  if (!userToFollow) return next(new ErrorHandler("User Not Found", 404));
+
+  let message;
+  if (loggedInUser.following.includes(userToFollow._id)) {
+    loggedInUser.following.pull(userToFollow._id);
+    userToFollow.followers.pull(loggedInUser._id);
+    message = "User Unfollowed";
+  } else {
+    loggedInUser.following.push(userToFollow._id);
+    userToFollow.followers.push(loggedInUser._id);
+    message = "User Followed";
+  }
+
+  await loggedInUser.save();
+  await userToFollow.save();
+  res.status(200).json({ success: true, message });
+});

@@ -43,6 +43,7 @@ export const createPost = async (req, res) => {
 
   try {
     const newPost = new Post({
+      user: req.user._id,
       title,
       body,
     });
@@ -143,21 +144,25 @@ export const unlikePost = async (req, res) => {
 
 // Comment on a post
 export const addComment = async (req, res) => {
-  const { comment } = req.body;
-
+  const { body } = req.body;
   try {
     const post = await Post.findById(req.params.id);
     if (!post) {
       return res.status(404).json({ msg: 'Post not found' });
     }
-
+    const comment = new Comment({
+      user: req.user._id,
+      body,
+      post: post._id
+    });
+    await comment.save();
     post.comments.push(comment);
     post.commentsCount += 1;
-
     await post.save();
     res.json(post);
   } catch (error) {
     console.error(error.message);
     res.status(500).send('Server Error');
-  }
+}
+
 };
